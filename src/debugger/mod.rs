@@ -33,7 +33,7 @@ use regex::Regex;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::time::{Duration, Instant};
-use std::{fs, vec};
+use std::{fs, vec, env};
 
 pub struct DebugHandler {
     config: Config,
@@ -1099,7 +1099,10 @@ impl<'a, R: Reader<Offset = usize>> Debugger<'a, R> {
                     let filename = get_unused_filename(res_folder.to_path_buf());
                     res_folder.push(filename);
                     let mut file = File::create(res_folder.clone())?;
-                    file.write_all((self.file_path.to_str().unwrap()).as_bytes())?;
+                    let workdir_str = "Working directory: ".to_string() + self.workdir.to_str().unwrap();
+                    let current_dir = env::current_dir()?;
+                    let binpath_str = "Bin path: ".to_string() + current_dir.to_str().unwrap() + self.file_path.to_str().unwrap();
+                    file.write_all((workdir_str + "\n" + &binpath_str).as_bytes())?;
                     self.result_filepath = res_folder;
                 }
                 //println!("Halted on: start");
@@ -1148,7 +1151,7 @@ impl<'a, R: Reader<Offset = usize>> Debugger<'a, R> {
                                 } 
                             }
                         }
-                        println!("Data being written (data: [u32]): {:?}", data);
+                        println!("Data being written ([u32]): {:?}", data);
                         core.write_32(klee_var_address, &data)?;
                         self.ktests_run += 1;
                         break;
