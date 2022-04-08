@@ -1135,23 +1135,28 @@ impl<'a, R: Reader<Offset = usize>> Debugger<'a, R> {
                         let ktest = parse_ktest(&fs::read(ktest_file.path())?)?;
                         let mut data = vec![];
                         //Handle multiple objects? dont think its needed
+                        //println!("{:?}", ktest.objects);
                         for object in ktest.objects {
                             let mut bytes = object.bytes;
                             let mut d:u32 = 0;
-                            let mut nmbr_shifts = 4;
-                            for i in 0..object.num_bytes {
+                            let mut nmbr_shifts = 3;
+                            for byte in bytes {
                                 //bitshift in the bytes to create a u32
+                                d = d | ((byte as u32) << nmbr_shifts * 8);
                                 nmbr_shifts -= 1;
-                                d = d | ((bytes.pop().unwrap() as u32) << nmbr_shifts * 8);
-                                //if four laps are complete one u32 is done, push to vec
-                                if (i+1) % 4 == 0 {
-                                    nmbr_shifts = 4;
+                                //every 4th shift is a finished u32
+                                if nmbr_shifts < 0 {
+                                    nmbr_shifts = 3;
                                     data.push(d);
                                     d = 0;
-                                } 
+                                }
                             }
                         }
-                        println!("Data being written ([u32]): {:?}", data);
+                        println!("Data being written:");
+                        for vec in data.clone() {
+                            print!(" {:#04x}",vec);
+                        }
+                        println!();
                         core.write_32(klee_var_address, &data)?;
                         self.ktests_run += 1;
                         break;
