@@ -53,6 +53,7 @@ pub enum DebugResponse {
         message: String,
     },
     SetCWD,
+    SetKtestFolder,
     DAPStackFrames {
         stack_frames: Vec<debugserver_types::StackFrame>,
     },

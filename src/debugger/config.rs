@@ -4,6 +4,7 @@ pub struct Config {
     pub elf_file_path:  Option<PathBuf>,
     pub chip:           Option<String>,
     pub work_directory: Option<String>,
+    pub ktests_directory: Option<String>,
     pub probe_num:      usize,
 }
 
@@ -13,12 +14,13 @@ impl Config {
             elf_file_path: opt.elf_file_path,
             chip: opt.chip,
             work_directory: opt.work_directory,
+            ktests_directory: opt.ktests_directory,
             probe_num: 0,
         }
     }
 
     pub fn is_missing_config(&self) -> bool {
-        self.elf_file_path.is_none() || self.chip.is_none() || self.work_directory.is_none()
+        self.elf_file_path.is_none() || self.chip.is_none() || self.work_directory.is_none() || self.ktests_directory.is_none()
     }
 
     pub fn missing_config_message(&self) -> String {
@@ -35,6 +37,9 @@ impl Config {
         }
         if self.work_directory.is_none() {
             error = format!("{}\n\t{}", error, "work directory");
+        }
+        if self.ktests_directory.is_none() {
+            error = format!("{}\n\t{}", error, "ktests_directory");
         }
 
         error

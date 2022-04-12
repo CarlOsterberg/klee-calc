@@ -64,6 +64,9 @@ pub enum DebugRequest {
         id: i64,
     },
     // Custom requests
+    SetKtestFolder {
+        cwd: String,
+    },
     CycleCounter,
     KleeCalc,
 }

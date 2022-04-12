@@ -70,6 +70,10 @@ pub struct Opt {
     #[structopt(short = "wd", long = "work-directory")]
     work_directory: Option<String>,
 
+    // Ktest directory
+    #[structopt(short = "k", long = "ktests-directory")]
+    ktests_directory: Option<String>,
+
     /// Type of Chip
     #[structopt(short = "c", long = "chip")]
     chip: Option<String>,
