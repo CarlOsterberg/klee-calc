@@ -52,6 +52,7 @@ impl DebugHandler {
                 elf_file_path: None,
                 chip: None,
                 work_directory: None,
+                ktests_directory: None,
                 probe_num: 0,
             },
         }
@@ -105,6 +106,10 @@ impl DebugHandler {
                 self.config.work_directory = Some(cwd);
                 Ok((false, DebugResponse::SetCWD))
             }
+            DebugRequest::SetKtestFolder { cwd } => {
+                self.config.ktests_directory = Some(cwd);
+                Ok((false, DebugResponse::SetKtestFolder))
+            }
             _ => {
                 if self.config.is_missing_config() {
                     return Ok((
@@ -148,6 +153,13 @@ impl DebugHandler {
                         }
                     },
                     request,
+                    match self.config.ktests_directory.clone() {
+                        Some(val) => PathBuf::from(val),
+                        None => {
+                            error!("Requires ktests directory path");
+                            return Err(anyhow!("Requires ktests directory path"));
+                        }
+                    },
                 )?;
                 self.handle_request(sender, receiver, new_request)
             }
@@ -164,6 +176,7 @@ pub fn init(
     chip: String,
     cwd: String,
     request: DebugRequest,
+    ktests_directory: PathBuf,
 ) -> Result<DebugRequest> {
     let cs = capstone::Capstone::new() // TODO: Set the capstone base on the arch of the chip.
         .arm()
@@ -211,6 +224,7 @@ pub fn init(
         klee_trace_start: 0,
         ktests_run: 0,
         result_filepath: PathBuf::new(),
+        ktests_directory: ktests_directory,
     };
 
     debugger.run(sender, receiver, request)
@@ -236,6 +250,7 @@ struct Debugger<'a, R: Reader<Offset = usize>> {
     klee_trace_start: u32,
     ktests_run: u32,
     result_filepath: PathBuf,
+    ktests_directory: PathBuf,
 }
 
 impl<'a, R: Reader<Offset = usize>> Debugger<'a, R> {
@@ -1121,8 +1136,7 @@ impl<'a, R: Reader<Offset = usize>> Debugger<'a, R> {
                 let mut klee_var_value = vec![0u32; 1];
                 core.read_32(klee_var_address, &mut klee_var_value)?;
                 //folder ktests in workdir should hold all .ktest files
-                let mut dir = self.workdir.clone();
-                dir.push("ktests");
+                let dir = self.ktests_directory.clone();
                 let ktests = fs::read_dir(dir)
                     .context("Workdirectory does'nt contain ktests folder")?;
                 let validator = Regex::new(&("test0*".to_owned() + &(self.ktests_run + 1).to_string()  + "[.]ktest")).unwrap();
@@ -1137,7 +1151,7 @@ impl<'a, R: Reader<Offset = usize>> Debugger<'a, R> {
                         //Handle multiple objects? dont think its needed
                         //println!("{:?}", ktest.objects);
                         for object in ktest.objects {
-                            let mut bytes = object.bytes;
+                            let bytes = object.bytes;
                             let mut d:u32 = 0;
                             let mut nmbr_shifts = 3;
                             for byte in bytes {
@@ -1153,8 +1167,9 @@ impl<'a, R: Reader<Offset = usize>> Debugger<'a, R> {
                             }
                         }
                         println!("Data being written:");
+                        data.reverse();
                         for vec in data.clone() {
-                            print!(" {:#04x}",vec);
+                            print!(" {:#010x}",vec);
                         }
                         println!();
                         core.write_32(klee_var_address, &data)?;

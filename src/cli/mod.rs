@@ -197,6 +197,7 @@ impl Cli {
                 error!("Unreachable");
                 return Err(anyhow!("Unreachable"));
             }
+            DebugResponse::SetKtestFolder => self.handle_set_ktest_direc_response(),
         };
 
         Ok(false)
@@ -396,5 +397,9 @@ impl Cli {
 
     fn handle_set_cwd_response(&self) {
         println!("Current work directory set");
+    }
+
+    fn handle_set_ktest_direc_response(&self) {
+        println!("Current ktests directory set");
     }
 }
