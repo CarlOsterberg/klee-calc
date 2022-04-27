@@ -1130,12 +1130,12 @@ impl<'a, R: Reader<Offset = usize>> Debugger<'a, R> {
                 //println!("Halted on: klee call");
                 //get registerfile
                 let reg_file = core.registers();
-                //r0 holds address to klee variable
+                //r0 holds address to klee symbolic variable
                 let reg_address = reg_file.registers().next().unwrap();
                 let klee_var_address = core.read_core_reg(reg_address)?;
                 let mut klee_var_value = vec![0u32; 1];
                 core.read_32(klee_var_address, &mut klee_var_value)?;
-                //folder ktests in workdir should hold all .ktest files
+                //ktests directory holds all the ktests
                 let dir = self.ktests_directory.clone();
                 let ktests = fs::read_dir(dir)
                     .context("Workdirectory does'nt contain ktests folder")?;
@@ -1153,21 +1153,21 @@ impl<'a, R: Reader<Offset = usize>> Debugger<'a, R> {
                         for object in ktest.objects {
                             let bytes = object.bytes;
                             let mut d:u32 = 0;
-                            let mut nmbr_shifts = 3;
+                            let mut nmbr_shifts = 0;
                             for byte in bytes {
                                 //bitshift in the bytes to create a u32
                                 d = d | ((byte as u32) << nmbr_shifts * 8);
-                                nmbr_shifts -= 1;
+                                nmbr_shifts += 1;
                                 //every 4th shift is a finished u32
-                                if nmbr_shifts < 0 {
-                                    nmbr_shifts = 3;
+                                if nmbr_shifts > 3 {
+                                    nmbr_shifts = 0;
                                     data.push(d);
                                     d = 0;
                                 }
                             }
                         }
                         println!("Data being written:");
-                        data.reverse();
+                        //data.reverse();
                         for vec in data.clone() {
                             print!(" {:#010x}",vec);
                         }
@@ -1180,6 +1180,7 @@ impl<'a, R: Reader<Offset = usize>> Debugger<'a, R> {
                 if no_match {
                     self.trace = false;
                     self.running = false; 
+                    println!("kleecalc finished");
                 }
                 else {
                     drop(core);
