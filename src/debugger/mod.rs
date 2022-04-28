@@ -1139,10 +1139,18 @@ impl<'a, R: Reader<Offset = usize>> Debugger<'a, R> {
                 let dir = self.ktests_directory.clone();
                 let ktests = fs::read_dir(dir)
                     .context("Workdirectory does'nt contain ktests folder")?;
-                let validator = Regex::new(&("test0*".to_owned() + &(self.ktests_run + 1).to_string()  + "[.]ktest")).unwrap();
+                let mut validator = Regex::new(&("test0*".to_owned() + &(self.ktests_run + 1).to_string()  + "[.]ktest")).unwrap();
+                let mut err_check = Regex::new(&("test0*".to_owned() + &(self.ktests_run + 1).to_string()  + "[.].*[.]err")).unwrap();
                 let mut no_match = true;
                 for ktest_file in ktests {
                     let ktest_file = ktest_file.unwrap();
+                    if err_check.is_match(ktest_file.file_name().to_str().unwrap()) {
+                        println!("{} would result in a panic, skipping", ktest_file.file_name().to_str().unwrap());
+                        self.ktests_run += 1;
+                        validator = Regex::new(&("test0*".to_owned() + &(self.ktests_run + 1).to_string()  + "[.]ktest")).unwrap();
+                        err_check = Regex::new(&("test0*".to_owned() + &(self.ktests_run + 1).to_string()  + "[.].*[.]err")).unwrap();
+                        continue;
+                    }
                     if validator.is_match(ktest_file.file_name().to_str().unwrap()) {
                         no_match = false;
                         println!("Running: {}", ktest_file.file_name().to_str().unwrap());
