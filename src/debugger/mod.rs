@@ -8,7 +8,7 @@ use rust_debug::evaluate::evaluate::{get_udata, EvaluatorValue};
 use rust_debug::registers::Registers;
 use rust_debug::source_information::{find_breakpoint_location, SourceInformation};
 
-use std::fs::File;
+use std::fs::{File, ReadDir};
 use std::io::Write;
 use std::num::NonZeroU64;
 
@@ -225,6 +225,7 @@ pub fn init(
         ktests_run: 0,
         result_filepath: PathBuf::new(),
         ktests_directory: ktests_directory,
+        skip: false,
     };
 
     debugger.run(sender, receiver, request)
@@ -251,6 +252,7 @@ struct Debugger<'a, R: Reader<Offset = usize>> {
     ktests_run: u32,
     result_filepath: PathBuf,
     ktests_directory: PathBuf,
+    skip: bool,
 }
 
 impl<'a, R: Reader<Offset = usize>> Debugger<'a, R> {
@@ -1091,16 +1093,20 @@ impl<'a, R: Reader<Offset = usize>> Debugger<'a, R> {
             //end
             1 => {
                 //println!("Halted on: end");
-                let cycles_since_start = cycle_counter - self.klee_trace_start;
-                println!("Calculated cycles {}", cycles_since_start);
-                let mut file = fs::OpenOptions::new()
-                    .write(true)
-                    .append(true)
-                    .open(self.result_filepath.clone())
-                    .unwrap();
-                let s = format_result_line(self.ktests_run, cycles_since_start);
-                if let Err(e) = write!(file, "{}", s) {
-                    eprintln!("Couldn't write to file: {}", e);
+                if self.skip {
+                    self.skip = false;
+                } else {
+                    let cycles_since_start = cycle_counter - self.klee_trace_start;
+                    println!("Calculated cycles {}", cycles_since_start);
+                    let mut file = fs::OpenOptions::new()
+                        .write(true)
+                        .append(true)
+                        .open(self.result_filepath.clone())
+                        .unwrap();
+                    let s = format_result_line(self.ktests_run, cycles_since_start);
+                    if let Err(e) = write!(file, "{}", s) {
+                        eprintln!("Couldn't write to file: {}", e);
+                    }
                 }
                 drop(core);
                 self.continue_command()?;
@@ -1137,19 +1143,17 @@ impl<'a, R: Reader<Offset = usize>> Debugger<'a, R> {
                 core.read_32(klee_var_address, &mut klee_var_value)?;
                 //ktests directory holds all the ktests
                 let dir = self.ktests_directory.clone();
-                let ktests = fs::read_dir(dir)
+                let ktests = fs::read_dir(dir.clone())
                     .context("Workdirectory does'nt contain ktests folder")?;
-                let mut validator = Regex::new(&("test0*".to_owned() + &(self.ktests_run + 1).to_string()  + "[.]ktest")).unwrap();
-                let mut err_check = Regex::new(&("test0*".to_owned() + &(self.ktests_run + 1).to_string()  + "[.].*[.]err")).unwrap();
+                let validator = Regex::new(&("test0*".to_owned() + &(self.ktests_run + 1).to_string()  + "[.]ktest")).unwrap();
                 let mut no_match = true;
                 for ktest_file in ktests {
                     let ktest_file = ktest_file.unwrap();
-                    if err_check.is_match(ktest_file.file_name().to_str().unwrap()) {
-                        println!("{} would result in a panic, skipping", ktest_file.file_name().to_str().unwrap());
+                    if is_err(dir.clone(), self.ktests_run) {
                         self.ktests_run += 1;
-                        validator = Regex::new(&("test0*".to_owned() + &(self.ktests_run + 1).to_string()  + "[.]ktest")).unwrap();
-                        err_check = Regex::new(&("test0*".to_owned() + &(self.ktests_run + 1).to_string()  + "[.].*[.]err")).unwrap();
-                        continue;
+                        no_match = false;
+                        self.skip = true;
+                        break;
                     }
                     if validator.is_match(ktest_file.file_name().to_str().unwrap()) {
                         no_match = false;
@@ -1241,6 +1245,19 @@ fn get_unused_filename(path: PathBuf) -> String {
     (current_max + 1).to_string() + ".cycles"
 }
 
+fn is_err(dir: PathBuf, ktest_run: u32) -> bool {
+    let ktests = fs::read_dir(dir)
+                    .context("Workdirectory does'nt contain ktests folder").unwrap();
+    let err_check = Regex::new(&("test0*".to_owned() + &(ktest_run + 1).to_string()  + "[.].*[.]err")).unwrap();
+    for ktest in ktests {
+        let ktest_file = ktest.unwrap();
+        if err_check.is_match(ktest_file.file_name().to_str().unwrap()) {
+            println!("{} would result in a panic, skipping", ktest_file.file_name().to_str().unwrap());
+            return true;
+        }
+    }
+    false
+}
 
 
 // Read the cycle counter from the DWT Cycle Counter Register (0xe0001004)
